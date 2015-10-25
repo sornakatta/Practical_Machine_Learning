@@ -1,18 +1,128 @@
 ---
 title: "Practical Machine Learning Project"
-output: html_document
+output: pdf_document
+geometry: margin=0.5in
 ---
 
-This report outlines the exploratory data analysis conducted on the 'Weight Lifting Exercises' dataset in R, details of which can be found [here](http://groupware.les.inf.puc-rio.br/har). The goal is to study the length of odontoblasts (teeth) in each of 10 guinea pigs at each of three dose levels of Vitamin C (0.5, 1, and 2 mg) with each of two delivery methods (orange juice or ascorbic acid).
+This document was produced for the course project of 'Practical Machine Learning', the 8th course in the 'Data Science Specialization', a MOOC on Coursera. The code in this report has been developed and tested on a machine running Ubuntu 14.04 and R 3.2.2. 
+
+# Background
+
+This report outlines the exploratory data analysis conducted on the 'Weight Lifting Exercises' dataset in R, details of which can be found [here](http://groupware.les.inf.puc-rio.br/har). The manual notes that '*Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E). Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes.*' 
+
+The goal is to predict if the exercise was perfomred correctly, i.e. predict which of the five aforementioned classes a particular routine correspinds to using the information provided. Multiple measurements were made using accelerometers attached to the fore arm, upper arm, waist and dumb-bells. These measured values constitute the predictors. 
+
+# Data Sources
+
+The training data for this project are available here:
+
+[https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv)
+
+The test data are available here:
+
+[https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv)
+
+# Getting the data
+
+First, I assign the URL's provided earlier to variables that I can access in R. 
+```{r}
+trUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+teUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+```
+
+In an exploratory data analysis (not reported here) it was found that the missing data in this dataset can take one of three values. They are appropriately identified while inputing the data
 
 ```{r}
-summary(cars)
+train <- read.csv(url(trUrl), na.strings=c("NA","#DIV/0!",""))
+test <- read.csv(url(teUrl), na.strings=c("NA","#DIV/0!",""))
 ```
 
-You can also embed plots, for example:
-
-```{r, echo=FALSE}
-plot(cars)
+```{r}
+dim(train)
+```
+```{r,results='hide'}
+summary(train)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+A summary of the dataset (output suppressed here for brevity) shows that in additon to some columns with entirely missing data, a large number of columns contain $\sim 19000$ NA's (19216, to be precise). These predictors are there unusable as missing values vastly outnumber the non-missing or provided data, i.e. imputing these values isn't feasible. All these columns are excluded
+
+```{r}
+train <- train[,colSums(is.na(train)) < 19216]
+```
+Finally, the first column (containing ID's) and the fifth column (containing timestamps) are excluded as predictors
+
+```{r}
+train <- train[,-c(1,5)]
+```
+Now, using the package *caret*, the dataset is divided into *testing* and *training* sets, following the 40/60 split suggested in the lectures.
+```{r,results='hide'}
+library(caret)
+```
+
+```{r}
+inTrain <- createDataPartition(y=train$classe, p=0.6, list=FALSE)
+myTrain <- train[inTrain, ]; myTest <- train[-inTrain, ]
+dim(myTrain); dim(myTest)
+```
+
+# Machine Learning Models
+Now that the data had been formatted, machine learning models are developed to be able to predict the *classe* variable from the 57 predictors that have been short listed. Given the non-linear nature of the data, decision tree based algorithms are used to construct the models. The machine learning algorithms are trained on the *training* set. In the next section, their predictions on the *testing* set are compared.
+
+## Decision Trees
+
+```{r}
+library(rpart)
+DTfit <- rpart(classe ~ ., data=myTrain, method="class")
+```
+Decision trees have an advantage in that you can view the results directly using the following commands (code for plot commented out).
+```{r,results='hide'}
+library(rattle)
+library(rpart.plot)
+library(RColorBrewer)
+#fancyRpartPlot(DTfit)
+```
+
+## Random Forests
+```{r,results='hide'}
+library(randomForest)
+RFfit <- randomForest(classe ~ ., data=myTrain, method="class")
+```
+The importance of the predictors to the accuracy of the model can be visualized using *varImpPlot* command.
+```{r}
+varImpPlot(RFfit)
+```
+This indicates that a far simpler model could be formaulated by using just the first few predictors listed here. Here, simplification of the model is not pursued as it isn't required for this assignemnt.  
+
+## Comparison of model performance
+To evaluate the accuracy of the models, their performance on the *test* set is computed
+```{r}
+predictDT <- predict(DTfit, myTest, type = "class")
+predictRF <- predict(RFfit, myTest, type = "class")
+```
+Now we look at the respective confusion matrices for the two models
+```{r}
+confusionMatrix(predictDT, myTest$classe)$table
+confusionMatrix(predictRF, myTest$classe)$table
+```
+The Random Forest algorithm appears to be far more accurate, when used to evaluate out of sample data. This can be confirmed:
+
+```{r}
+confusionMatrix(predictDT, myTest$classe)$overall
+confusionMatrix(predictRF, myTest$classe)$overall
+```
+
+# Conclusions
+
+Two models were developed to predict the qualitative exercise behaviour of 6 individuals. The Random Forest algorithm was shown to be far superior, as measured by its accuracy on the test data. 
+
+# Appendix
+
+In addition the model here is also used to predict the results for 20 test cases. This requires modifying the levels in one of the predictors
+
+```{r}
+levels(test$new_window) <- levels(train$new_window)
+answers <- predict(RFfit, newdata = test) 
+answers
+```
+
+Now the predictions can be converted into individual files using the code provided on the project submission page.
