@@ -1,6 +1,6 @@
 ---
 title: "Practical Machine Learning Project"
-output: pdf_document
+output: html_document
 geometry: margin=0.5in
 ---
 
@@ -72,6 +72,7 @@ Now that the data had been formatted, machine learning models are developed to b
 
 ```{r}
 library(rpart)
+set.seed(1234)
 DTfit <- rpart(classe ~ ., data=myTrain, method="class")
 ```
 Decision trees have an advantage in that you can view the results directly using the following commands (code for plot commented out).
@@ -109,6 +110,14 @@ The Random Forest algorithm appears to be far more accurate, when used to evalua
 ```{r}
 confusionMatrix(predictDT, myTest$classe)$overall
 confusionMatrix(predictRF, myTest$classe)$overall
+```
+
+The out of sample error can be readily calculated.
+
+```{r}
+error <- 1 - confusionMatrix(predictRF, myTest$classe)$overall[1]
+names(error) <- "Out of sample error"
+error
 ```
 
 # Conclusions
